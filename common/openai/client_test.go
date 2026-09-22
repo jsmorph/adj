@@ -4,10 +4,12 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"io"
 	"net"
 	"net/http"
 	"net/url"
+	"reflect"
 	"strings"
 	"testing"
 	"time"
@@ -39,6 +41,103 @@ func TestNewRejectsMissingConfig(t *testing.T) {
 	}
 	if _, err := New("key", "", false, time.Second); err == nil {
 		t.Fatalf("New missing base URL error = nil, want error")
+	}
+}
+
+func TestOpenRouterContinuationPreservesCompleteHistory(t *testing.T) {
+	client, err := New("key", "https://openrouter.ai/api/v1", false, time.Second)
+	if err != nil {
+		t.Fatal(err)
+	}
+	outputs := []string{
+		`[{"type":"reasoning","id":"reason-1","summary":[],"encrypted_content":"opaque","provider_signature":"signed"},{"type":"message","id":"message-1","role":"assistant","status":"completed","content":[{"type":"output_text","text":"Checking.","annotations":[]}]},{"type":"function_call","id":"fc-1","call_id":"call-1","name":"lookup","arguments":"{}","status":"completed"}]`,
+		`[{"type":"function_call","id":"fc-2","call_id":"call-2","name":"submit","arguments":"{\"vote\":true}","status":"completed"}]`,
+		`[{"type":"message","id":"message-3","role":"assistant","status":"completed","content":[{"type":"output_text","text":"Recorded.","annotations":[]}]}]`,
+		`[]`,
+	}
+	var requests []map[string]any
+	transport := roundTripFunc(func(request *http.Request) (*http.Response, error) {
+		var body map[string]any
+		if err := json.NewDecoder(request.Body).Decode(&body); err != nil {
+			return nil, err
+		}
+		if _, ok := body["previous_response_id"]; ok {
+			t.Error("OpenRouter request contains previous_response_id")
+		}
+		requests = append(requests, body)
+		index := len(requests) - 1
+		return &http.Response{
+			StatusCode: http.StatusOK,
+			Header:     http.Header{"Content-Type": []string{"application/json"}},
+			Body:       io.NopCloser(strings.NewReader(fmt.Sprintf(`{"id":"resp-%d","object":"response","status":"completed","output":%s}`, index+1, outputs[index]))),
+			Request:    request,
+		}, nil
+	})
+	client.client = openaisdk.NewClient(option.WithAPIKey("key"), option.WithBaseURL(client.baseURL), option.WithHTTPClient(&http.Client{Transport: transport}))
+	inputs := [][]map[string]any{
+		{{"role": "system", "content": "Follow the tools."}, {"role": "user", "content": "Vote."}},
+		{{"type": "function_call_output", "call_id": "call-1", "output": "evidence"}},
+		{{"type": "function_call_output", "call_id": "call-2", "output": "accepted"}},
+		{{"type": "function_call_output", "call_id": "call-1", "output": "other evidence"}},
+	}
+	previous := []string{"", "resp-1", "resp-2", "resp-1"}
+	wantLengths := []int{2, 6, 8, 6}
+	for index, input := range inputs {
+		if _, err := client.CreateResponse(context.Background(), "model", input, nil, previous[index], nil); err != nil {
+			t.Fatal(err)
+		}
+		history := requests[index]["input"].([]any)
+		if len(history) != wantLengths[index] {
+			t.Fatalf("request %d input length = %d, want %d", index, len(history), wantLengths[index])
+		}
+		if index > 0 {
+			var originalOutput []any
+			if err := json.Unmarshal([]byte(outputs[0]), &originalOutput); err != nil {
+				t.Fatal(err)
+			}
+			if !reflect.DeepEqual(history[2:5], originalOutput) {
+				t.Fatalf("request %d changed provider output: %#v", index, history[2:5])
+			}
+			if !reflect.DeepEqual(history[:2], requests[0]["input"]) {
+				t.Fatalf("request %d changed initial messages", index)
+			}
+		}
+		if index == 2 && history[5].(map[string]any)["output"] != "evidence" {
+			t.Fatalf("third request lost the first tool result: %#v", history)
+		}
+		if index == 3 && history[5].(map[string]any)["output"] != "other evidence" {
+			t.Fatalf("branch request changed parent history: %#v", history)
+		}
+	}
+	for _, test := range []struct{ model, previous string }{{"model", "unknown"}, {"other-model", "resp-1"}} {
+		_, err := client.CreateResponse(context.Background(), test.model, inputs[1], nil, test.previous, nil)
+		if ErrorClass(err) != ProviderErrorRequest {
+			t.Fatalf("invalid continuation error = %v", err)
+		}
+	}
+	if len(requests) != 4 {
+		t.Fatalf("invalid continuations reached provider: %d requests", len(requests))
+	}
+}
+
+func TestStatefulProviderContinuationUsesResponseID(t *testing.T) {
+	client, err := New("key", "https://api.openai.com/v1", false, time.Second)
+	if err != nil {
+		t.Fatal(err)
+	}
+	transport := roundTripFunc(func(request *http.Request) (*http.Response, error) {
+		var body map[string]any
+		if err := json.NewDecoder(request.Body).Decode(&body); err != nil {
+			return nil, err
+		}
+		if body["previous_response_id"] != "remote-response" || len(body["input"].([]any)) != 1 {
+			t.Errorf("stateful request = %#v", body)
+		}
+		return &http.Response{StatusCode: http.StatusOK, Header: http.Header{"Content-Type": []string{"application/json"}}, Body: io.NopCloser(strings.NewReader(`{"id":"next-response","output":[]}`)), Request: request}, nil
+	})
+	client.client = openaisdk.NewClient(option.WithAPIKey("key"), option.WithBaseURL(client.baseURL), option.WithHTTPClient(&http.Client{Transport: transport}))
+	if _, err := client.CreateResponse(context.Background(), "model", []map[string]any{{"type": "function_call_output", "call_id": "call-1", "output": "accepted"}}, nil, "remote-response", nil); err != nil {
+		t.Fatal(err)
 	}
 }
 

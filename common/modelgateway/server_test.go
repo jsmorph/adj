@@ -48,7 +48,7 @@ func TestChatServerPreservesProviderConversation(t *testing.T) {
 				CallID:       "call-1",
 				Name:         "submit_council_vote",
 				Arguments:    map[string]any{"verdict": "for"},
-				RawArguments: `{"verdict":"for"}`,
+				RawArguments: `{ "verdict": "for" }`,
 			}},
 			UsageKnown: true,
 			Usage:      modelapi.Usage{InputTokens: 10, OutputTokens: 4, TotalTokens: 14},
@@ -128,6 +128,36 @@ func TestChatServerRejectsChangedHistory(t *testing.T) {
 	response = runChatRequest(t, server, binding, map[string]any{"model": binding.Model, "messages": changed})
 	if response.Code != http.StatusBadRequest || !strings.Contains(response.Body.String(), "changed prior message 0") {
 		t.Fatalf("changed response: %d %s", response.Code, response.Body.String())
+	}
+}
+
+func TestChatHistoryComparesToolArgumentValues(t *testing.T) {
+	message := func(arguments string) map[string]any {
+		return chatAssistantMessage(modelapi.Response{ToolCalls: []modelapi.ToolCall{{CallID: "call-1", Name: "submit", RawArguments: arguments}}})
+	}
+	expected := []map[string]any{message(`{ "vote": true, "score": 1.0, "text": "\u0061", "nested": {"x": 2, "y": 3} }`)}
+	if err := checkMessagePrefix([]map[string]any{message(`{"nested":{"y":3,"x":2},"text":"a","score":1,"vote":true}`)}, expected); err != nil {
+		t.Fatal(err)
+	}
+	for _, arguments := range []string{
+		`{"vote":false,"score":1,"text":"a","nested":{"x":2,"y":3}}`,
+		`{"vote":true,"score":2,"text":"a","nested":{"x":2,"y":3}}`,
+		`{"vote":true,"score":1,"text":"a","nested":{"x":2}}`,
+		`{"vote":true,`,
+	} {
+		if err := checkMessagePrefix([]map[string]any{message(arguments)}, expected); err == nil {
+			t.Fatalf("accepted changed arguments %s", arguments)
+		}
+	}
+	changedCall := message(`{ "vote": true, "score": 1.0, "text": "\u0061", "nested": {"x": 2, "y": 3} }`)
+	changedCall["tool_calls"].([]map[string]any)[0]["id"] = "other-call"
+	if err := checkMessagePrefix([]map[string]any{changedCall}, expected); err == nil {
+		t.Fatal("accepted changed tool call id")
+	}
+	objectArguments := message(`{"vote":true}`)
+	objectArguments["tool_calls"].([]map[string]any)[0]["function"].(map[string]any)["arguments"] = map[string]any{"vote": true}
+	if err := checkMessagePrefix([]map[string]any{objectArguments}, []map[string]any{message(`{"vote":true}`)}); err == nil {
+		t.Fatal("accepted non-string tool arguments")
 	}
 }
 

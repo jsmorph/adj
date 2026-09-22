@@ -101,6 +101,8 @@ Every council and juror request uses function tools for its structured submissio
 
 The OpenAI, Hugging Face, OpenRouter, and xAI clients send the request through their Responses-compatible APIs.  Their supported reasoning values, content types, and request parameters depend on the selected service and model.  The executor forwards configured `temperature`, `top_p`, output-token limits, `max_tool_calls`, reasoning effort, and ordinary custom headers.  Only OpenRouter accepts the request specification's `provider` routing object.
 
+OpenRouter's [stateless Responses API](https://openrouter.ai/docs/api_reference/responses/basic-usage) requires the complete conversation on each request and rejects `previous_response_id`.  The client retains the input and complete provider output for each response, including reasoning data and function calls, and appends the next input before sending a continuation.  Other Responses endpoints continue to receive the previous response identifier.
+
 The native adapters apply these rules:
 
 | Endpoint | Content and tools | Reasoning effort |
@@ -118,6 +120,8 @@ Council members and jurors receive no web-search tool.  Their inputs comprise th
 Quick calls the executor in the Quick process.  `aar case` and `aard case` call it in the core process when `--council-backend direct` is selected.  Direct ADC juror execution also calls the executor in the core process.
 
 The complete local runners `aar-run`, `aard-run`, and `adc-run`, including their use through `adjudicate`, start Pi agents for council or juror opportunities.  The local runner keeps the shared executor and exposes a loopback OpenAI Chat Completions interface that Pi can call.  Each opportunity receives a fresh random model alias and bearer token bound to one upstream request specification.  Pi receives neither the upstream model name nor its credential.  The server accepts streamed and non-streamed Pi requests, preserves append-only continuation history, and rejects a non-null `tool_choice` field because it cannot enforce that field through every upstream endpoint.  The local runner revokes the opportunity token when its Pi process exits.
+
+Pi parses tool arguments and serializes them again when it repeats the conversation.  The gateway compares the decoded argument values, accepting differences in JSON formatting and object-key order while rejecting changes to arguments or call identifiers.
 
 The local runner writes every Pi-to-provider request to JSONL:
 

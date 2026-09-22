@@ -20,6 +20,22 @@ The case commit was rebased onto remote `main` at `1c7f5d6`, incorporating the P
 
 The merge review compared all 1,696 files outside the original 18-file change against remote Git objects, including executable modes.  All matched.  The three new case files matched the original commit byte for byte.  The two digest calls were the only remotely added lines replaced during integration.  Their replacements preserve the remote request defaults while carrying the selected reasoning effort.  The original commit remains at `backup/zelenskyy-adc-9d4ef76`.  Review diffs and the complete remote file list are under `/tmp/adj-merge-review-9bomx5cx`.  Tests passed across the ADC runtime, shared provider executor, council selector, Pi model adapter, all runtime packages, and all command packages.  Local Lean runner builds of `adcengine` and `Proofs` passed with 4 GiB memory high, 6 GiB memory maximum, 1 GiB swap, 100% CPU, and a 900-second timeout per build.
 
+## Pi juror continuation failures
+
+The first live Zelenskyy ADC run, `case-40cb2cde0c3905f4e3bf1aba37ba2ca7/run-4d703b1f864b8ed8463cbbd691371481`, reached voir dire after both Astra lawyers completed pleadings and discovery.  Candidate jurors then exited after their first MCP call.  OpenRouter rejected `previous_response_id`, and the gateway rejected Pi's serialization of prior tool arguments.  The controller received SIGINT, stopped its participants, and recorded cancellation.  Core shutdown required termination, so the interrupted record lacks a completed core result.  Its existing files remain under the configured output root.  No participant containers remained after shutdown.
+
+The [OpenRouter Responses documentation](https://openrouter.ai/docs/api_reference/responses/basic-usage) requires full conversation history and rejects stateful continuation parameters.  The shared Responses client now retains each OpenRouter response's input and complete raw output, including provider reasoning fields, and appends new input for continuation.  Other Responses services retain their previous-response behavior.  This follows the existing native adapters' ownership of provider conversation state.
+
+Pi 0.84.3's installed `pi-ai/dist/providers/openai-completions.js` constructs repeated tool arguments with `JSON.stringify(tc.arguments)`.  The gateway formerly compared that string with the provider's original formatting.  It now compares decoded JSON argument values and retains the checks for changed message content, call identifiers, and argument values.
+
+- [x] Test three-turn OpenRouter history, retained reasoning fields, branching continuations, unknown response identifiers, and model mismatches.
+- [x] Test stateful Responses behavior and Pi argument serialization.
+- [x] Test live Pi through ADC's gateway configuration and container arguments with multiple MCP calls.
+- [x] Run affected procedure tests and vet.
+- [ ] Commit, push, and restart the clean case.
+
+The live test used ADC's production `writePiConfig`, `piRunArgs`, `jurorModelEnvironment`, gateway, executor, and installed Pi container.  OpenRouter `openai/gpt-4.1` and `anthropic/claude-opus-4.6` each completed four provider requests and two MCP calls, including submission of a nonce available only in the first tool result.  The test and records remain under `/tmp/adj-pi-continuation-g2db97ei`.  Tests passed for all common packages, ADC runtime packages, local runners, unified runtime, and commands.  Vet passed for the two changed code packages.  A fresh fetch found no remote commits beyond the pushed case configuration.
+
 ## Pi authentication test diagnosis
 
 At `36316f3`, ADC and ARB contained the same invalid negative fixture in `TestValidateLawyerProfileAuthentication`: `LawyerProfile{Runner: LawyerPi}` had no model, but the assertion expected an `explicit API-key` error.  Provider resolution rejected the missing model before credential validation.  The expected authentication rule also conflicted with the [participant profile documentation](adjudication-cli.md#participant-profiles): Pi supports OpenAI subscription credentials, and an omitted authentication mode selects subscription authentication.

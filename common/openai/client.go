@@ -12,6 +12,7 @@ import (
 	"os"
 	"strconv"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/agentcourt/adj/common/modelapi"
@@ -19,6 +20,7 @@ import (
 
 	openai "github.com/openai/openai-go/v3"
 	"github.com/openai/openai-go/v3/option"
+	"github.com/openai/openai-go/v3/packages/param"
 	"github.com/openai/openai-go/v3/responses"
 	"github.com/openai/openai-go/v3/shared"
 )
@@ -76,6 +78,13 @@ type Client struct {
 	defaultTemperature *float64
 	retryDelays        []time.Duration
 	accounting         AccountingRecorder
+	conversationMu     sync.Mutex
+	conversations      map[string]responseConversation
+}
+
+type responseConversation struct {
+	model string
+	input responses.ResponseInputParam
 }
 
 func New(apiKey string, baseURL string, online bool, timeout time.Duration) (*Client, error) {
@@ -232,6 +241,14 @@ func (c *Client) createResponse(
 	if err != nil {
 		return Response{}, err
 	}
+	stateless := isOpenRouterBaseURL(c.baseURL)
+	if stateless {
+		convertedInput, err = c.continuedInput(model, convertedInput, previousResponseID)
+		if err != nil {
+			return Response{}, err
+		}
+		previousResponseID = ""
+	}
 	defer func() {
 		c.accounting.Record(response)
 	}()
@@ -246,6 +263,21 @@ func (c *Client) createResponse(
 			parsed, err := parseResponse(res)
 			if err != nil {
 				return Response{}, &ProviderError{Class: ProviderErrorProtocol, Err: err}
+			}
+			if stateless {
+				if parsed.ResponseID == "" {
+					return Response{}, &ProviderError{Class: ProviderErrorProtocol, Err: fmt.Errorf("OpenRouter response omitted an id")}
+				}
+				history := append(responses.ResponseInputParam(nil), convertedInput...)
+				for _, item := range res.Output {
+					history = append(history, param.Override[responses.ResponseInputItemUnionParam](json.RawMessage(item.RawJSON())))
+				}
+				c.conversationMu.Lock()
+				if c.conversations == nil {
+					c.conversations = make(map[string]responseConversation)
+				}
+				c.conversations[parsed.ResponseID] = responseConversation{model: model, input: history}
+				c.conversationMu.Unlock()
 			}
 			if spec != nil && strings.EqualFold(spec.Endpoint, "openrouter") {
 				c.attachOpenRouterGeneration(ctx, &parsed)
@@ -281,6 +313,23 @@ func (c *Client) createResponse(
 		return Response{}, &ProviderError{Class: c.providerFailureClass(lastErr), Err: fmt.Errorf("responses failed after retries: %w", lastErr)}
 	}
 	return Response{}, &ProviderError{Class: ProviderErrorTransient, Err: fmt.Errorf("responses failed after retries")}
+}
+
+func (c *Client) continuedInput(model string, input responses.ResponseInputParam, previousResponseID string) (responses.ResponseInputParam, error) {
+	if previousResponseID == "" {
+		return input, nil
+	}
+	c.conversationMu.Lock()
+	conversation, ok := c.conversations[previousResponseID]
+	c.conversationMu.Unlock()
+	if !ok {
+		return nil, &ProviderError{Class: ProviderErrorRequest, Err: fmt.Errorf("unknown OpenRouter response %q", previousResponseID)}
+	}
+	if conversation.model != model {
+		return nil, &ProviderError{Class: ProviderErrorRequest, Err: fmt.Errorf("previous OpenRouter response belongs to another model")}
+	}
+	history := append(responses.ResponseInputParam(nil), conversation.input...)
+	return append(history, input...), nil
 }
 
 func responseParams(

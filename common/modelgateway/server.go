@@ -336,11 +336,11 @@ func checkMessagePrefix(messages, expected []map[string]any) error {
 		return fmt.Errorf("chat request removed prior messages")
 	}
 	for index := range expected {
-		messageJSON, err := json.Marshal(messages[index])
+		messageJSON, err := canonicalChatMessage(messages[index])
 		if err != nil {
 			return fmt.Errorf("encode chat message %d: %w", index, err)
 		}
-		expectedJSON, err := json.Marshal(expected[index])
+		expectedJSON, err := canonicalChatMessage(expected[index])
 		if err != nil {
 			return fmt.Errorf("encode prior chat message %d: %w", index, err)
 		}
@@ -349,6 +349,36 @@ func checkMessagePrefix(messages, expected []map[string]any) error {
 		}
 	}
 	return nil
+}
+
+func canonicalChatMessage(message map[string]any) ([]byte, error) {
+	raw, err := json.Marshal(message)
+	if err != nil {
+		return nil, err
+	}
+	var normalized map[string]any
+	if err := json.Unmarshal(raw, &normalized); err != nil {
+		return nil, err
+	}
+	calls, _ := normalized["tool_calls"].([]any)
+	for _, rawCall := range calls {
+		call, _ := rawCall.(map[string]any)
+		function, _ := call["function"].(map[string]any)
+		arguments, ok := function["arguments"].(string)
+		if !ok {
+			continue
+		}
+		var value any
+		if err := json.Unmarshal([]byte(arguments), &value); err != nil {
+			return nil, fmt.Errorf("decode tool arguments: %w", err)
+		}
+		encoded, err := json.Marshal(value)
+		if err != nil {
+			return nil, fmt.Errorf("encode tool arguments: %w", err)
+		}
+		function["arguments"] = string(encoded)
+	}
+	return json.Marshal(normalized)
 }
 
 func chatInputItems(messages []map[string]any) ([]map[string]any, error) {
