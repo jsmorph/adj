@@ -2063,12 +2063,7 @@ func (s *runState) activeJurorOpportunity(ctx context.Context) (*activeJurorOppo
 	if principalID == "" || opportunityID == "" {
 		return nil, fmt.Errorf("active juror turn missing principal_id or opportunity_id")
 	}
-	getURL := s.caseBase + "/roleapi/v1/get?case_id=" + url.QueryEscape(s.opts.CaseID) + "&role_id=juror&principal_id=" + url.QueryEscape(principalID)
-	detail, err := getJSON(ctx, getURL)
-	if err != nil {
-		return nil, err
-	}
-	opportunity, _ := detail["opportunity"].(map[string]any)
+	opportunity, _ := status["opportunity"].(map[string]any)
 	agent, _ := opportunity["agent"].(map[string]any)
 	rawSpec, _ := agent["request_spec"].(map[string]any)
 	if rawSpec == nil {

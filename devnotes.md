@@ -50,6 +50,12 @@ The restarted case accepted 13 completed questionnaires after replacing J10 and 
 
 J11 received malformed provider tool arguments, which the gateway rejected when Pi attempted another request.  ADC recorded both candidate replacements through its existing failed-juror procedure.  J14 and J15 completed their questionnaires before connection-reset errors appeared on their subsequent model calls during shutdown.
 
+### Juror opportunity polling
+
+The restarted case later replaced J8 after an empty model response during voir dire.  It stopped at turn 68 with `active juror J12 has no request_spec in role API response`.  The launcher read the current juror from the observer status endpoint, then issued a separate role-specific request for the opportunity.  The API constructs both the current-turn metadata and the complete opportunity, including the juror request specification, under one lock in the observer status response.  The second request could therefore combine different snapshots and was unnecessary.
+
+The launcher now reads the turn and request specification from that one response.  A test that returns an active juror first and a waiting state on a subsequent request reproduced the failure.  It now passes with one request.  A missing specification in the active snapshot still returns an error.  The failed run and its accepted actions remain in its original output directory.
+
 ## Pi authentication test diagnosis
 
 At `36316f3`, ADC and ARB contained the same invalid negative fixture in `TestValidateLawyerProfileAuthentication`: `LawyerProfile{Runner: LawyerPi}` had no model, but the assertion expected an `explicit API-key` error.  Provider resolution rejected the missing model before credential validation.  The expected authentication rule also conflicted with the [participant profile documentation](adjudication-cli.md#participant-profiles): Pi supports OpenAI subscription credentials, and an omitted authentication mode selects subscription authentication.

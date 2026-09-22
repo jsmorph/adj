@@ -782,6 +782,54 @@ func TestHandleLawyerExitUsesADCStatus(t *testing.T) {
 	}
 }
 
+func TestActiveJurorOpportunityUsesOneSnapshot(t *testing.T) {
+	for _, includeSpec := range []bool{true, false} {
+		t.Run(fmt.Sprintf("request_spec_%t", includeSpec), func(t *testing.T) {
+			calls := 0
+			opportunity := map[string]any{"phase": "voir_dire"}
+			if includeSpec {
+				opportunity["agent"] = map[string]any{"request_spec": map[string]any{"endpoint": "openrouter", "model": "example/model"}}
+			}
+			server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				calls++
+				w.Header().Set("Content-Type", "application/json")
+				response := map[string]any{"status": "waiting"}
+				if calls == 1 {
+					if r.URL.Path != "/roleapi/v1/status" || r.URL.Query().Get("role_id") != "observer" {
+						t.Errorf("unexpected first request: %s", r.URL)
+					}
+					response = map[string]any{
+						"status":       "active",
+						"current_turn": map[string]any{"role_id": "juror", "principal_id": "J12", "opportunity_id": "turn-12"},
+						"opportunity":  opportunity,
+					}
+				}
+				if err := json.NewEncoder(w).Encode(response); err != nil {
+					t.Error(err)
+				}
+			}))
+			defer server.Close()
+			state := &runState{opts: Options{CaseID: "case-1"}, caseBase: server.URL}
+			active, err := state.activeJurorOpportunity(context.Background())
+			if calls != 1 {
+				t.Errorf("read %d snapshots, want 1", calls)
+			}
+			if !includeSpec {
+				if err == nil || !strings.Contains(err.Error(), "no request_spec") {
+					t.Fatalf("missing request specification error = %v", err)
+				}
+				return
+			}
+			if err != nil {
+				t.Fatal(err)
+			}
+			if active == nil || active.principalID != "J12" || active.opportunityID != "turn-12" || active.phase != "voir_dire" || active.requestSpec.Model != "example/model" {
+				t.Fatalf("active opportunity = %#v", active)
+			}
+		})
+	}
+}
+
 func TestResolveOpenClawAuthDefaultsToCodexAuth(t *testing.T) {
 	t.Setenv("OPENAI_API_KEY", "api-key")
 	path := filepath.Join(t.TempDir(), "auth.json")
