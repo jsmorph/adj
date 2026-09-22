@@ -32,9 +32,17 @@ Pi 0.84.3's installed `pi-ai/dist/providers/openai-completions.js` constructs re
 - [x] Test stateful Responses behavior and Pi argument serialization.
 - [x] Test live Pi through ADC's gateway configuration and container arguments with multiple MCP calls.
 - [x] Run affected procedure tests and vet.
-- [ ] Commit, push, and restart the clean case.
+- [x] Commit, push, and restart the clean case.
 
 The live test used ADC's production `writePiConfig`, `piRunArgs`, `jurorModelEnvironment`, gateway, executor, and installed Pi container.  OpenRouter `openai/gpt-4.1` and `anthropic/claude-opus-4.6` each completed four provider requests and two MCP calls, including submission of a nonce available only in the first tool result.  The test and records remain under `/tmp/adj-pi-continuation-g2db97ei`.  Tests passed for all common packages, ADC runtime packages, local runners, unified runtime, and commands.  Vet passed for the two changed code packages.  A fresh fetch found no remote commits beyond the pushed case configuration.
+
+Commit `078b433` contains the continuation fixes.  The restarted case is `case-e36cd0b9cea687972e07ccd9715b7f15/run-867060e188769f6723929db9c84df50a`.  Its lawyers began fresh sessions with the original clean settings.
+
+### Completed Pi process cleanup
+
+A second live test exercised ADC's process supervisor and cleanup after a Pi-image container exited.  It reproduced the missing-container-ID errors from the interrupted case.  [Podman removes the `--cidfile` with its container](https://docs.podman.io/en/latest/markdown/podman-run.1.html#cidfile-file), so `--rm` can remove that file before ADC stops an exited process.  ARB already accounts for this behavior.  ADC now applies the same rule: require a recorded container ID when stopping an active runtime client, and accept an absent ID after the client has exited.  Cleanup continues to return process and finalization errors and removes a container only by its recorded ID.
+
+The new test checks successful and failed process exits with an absent ID file.  The existing ownership test still rejects an active client with no recorded container ID.  The live Podman test failed before the change and passed after it.  The active case continues with its original process image, so its eventual adjudication result and cleanup result require separate inspection.
 
 ## Pi authentication test diagnosis
 

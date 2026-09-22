@@ -599,6 +599,40 @@ func TestPiContainerOwnership(t *testing.T) {
 	}
 }
 
+func TestStopExitedContainerWithoutID(t *testing.T) {
+	for _, command := range []string{"true", "false"} {
+		t.Run(command, func(t *testing.T) {
+			idPath, idDir, err := createContainerIDPath(t.TempDir(), "completed-juror")
+			if err != nil {
+				t.Fatal(err)
+			}
+			cmd := exec.Command(command)
+			if err := cmd.Start(); err != nil {
+				t.Fatal(err)
+			}
+			exit := processExit{waitErr: cmd.Wait()}
+			proc := &processRecord{
+				name: "completed-juror", kind: "podman", command: cmd,
+				done: make(chan processExit, 1), finished: make(chan struct{}),
+				stopCommand:     filepath.Join(idDir, "must-not-run"),
+				containerIDPath: idPath, containerIDDir: idDir,
+			}
+			proc.markExited()
+			proc.done <- exit
+			err = stopContainerProcess(proc)
+			if command == "true" && err != nil {
+				t.Fatalf("stop completed juror: %v", err)
+			}
+			if command == "false" && (err == nil || !strings.Contains(err.Error(), "exit status 1")) {
+				t.Fatalf("failed juror error = %v", err)
+			}
+			if _, err := os.Stat(idDir); !errors.Is(err, os.ErrNotExist) {
+				t.Fatalf("container ID directory remains: %v", err)
+			}
+		})
+	}
+}
+
 func TestAutoLawyerRoles(t *testing.T) {
 	t.Parallel()
 
