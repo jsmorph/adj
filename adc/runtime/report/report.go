@@ -1107,14 +1107,11 @@ func renderJurorRounds(caseObj map[string]any) string {
 		}
 		b.WriteString(renderJurorRoundSummary(caseObj, rounds, round, votesByRound))
 		b.WriteString("\n")
-		b.WriteString("| # | Juror ID | Status | Model | Persona file | Vote | Damages | Confidence | Explanation |\n")
+		b.WriteString("| # | Juror ID | Final status | Model | Persona file | Vote | Damages | Confidence | Explanation |\n")
 		b.WriteString("|---:|---|---|---|---|---|---:|---|---|\n")
 		row := 0
 		for _, raw := range jurors {
 			j := getMap(raw)
-			if strOr(j["status"], "") != "sworn" {
-				continue
-			}
 			jid := strOr(j["juror_id"], "")
 			if strings.TrimSpace(jid) == "" {
 				jid = fmt.Sprintf("J%d", row+1)
@@ -1155,7 +1152,7 @@ func renderJurorRoundSummary(caseObj map[string]any, rounds []int, round int, vo
 	tally := tallyJurorRound(votesByRound[round])
 	parts := []string{
 		fmt.Sprintf(
-			"Summary: %d for plaintiff, %d for defendant, required votes %d.",
+			"Summary: %d for plaintiff, %d for defendant. Configured minimum concurrence: %d.",
 			tally.plaintiff,
 			tally.defendant,
 			requiredVotes,
@@ -1180,6 +1177,7 @@ func renderJurorRoundSummary(caseObj map[string]any, rounds []int, round int, vo
 			emptyNA(strOr(juryVerdict["verdict_for"], "")),
 			juryVerdict["damages"],
 		))
+		parts = append(parts, fmt.Sprintf("Recorded verdict concurrence: %v, required: %v.", juryVerdict["votes_for_verdict"], juryVerdict["required_votes"]))
 	case lastRound && len(hungJury) > 0:
 		parts = append(parts, "This round ended in a hung jury.")
 	default:

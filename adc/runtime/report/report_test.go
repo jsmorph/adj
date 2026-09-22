@@ -120,7 +120,7 @@ func TestRenderJurorRoundsIncludesRoundSummaries(t *testing.T) {
 	rendered := renderJurorRounds(caseObj)
 	want := []string{
 		"### Round 1",
-		"Summary: 1 for plaintiff, 1 for defendant, required votes 2. No verdict was reached in this round. Deliberation continued.",
+		"Summary: 1 for plaintiff, 1 for defendant. Configured minimum concurrence: 2. No verdict was reached in this round. Deliberation continued.",
 		"### Round 2",
 		"Supplemental instruction:",
 		"Changes from round 1: 1 vote changes, 1 damages changes.",
@@ -130,6 +130,36 @@ func TestRenderJurorRoundsIncludesRoundSummaries(t *testing.T) {
 		if !strings.Contains(rendered, needle) {
 			t.Fatalf("rendered digest missing %q\n%s", needle, rendered)
 		}
+	}
+}
+
+func TestRenderJurorRoundsPreservesVotesBeforeJurorFailure(t *testing.T) {
+	caseObj := map[string]any{
+		"jurors": []any{
+			map[string]any{"juror_id": "J1", "status": "sworn"},
+			map[string]any{"juror_id": "J2", "status": "timed_out"},
+		},
+		"jury_configuration": map[string]any{"minimum_concurring": 2},
+		"juror_votes": []any{
+			map[string]any{"juror_id": "J1", "round": 1, "vote": "plaintiff"},
+			map[string]any{"juror_id": "J2", "round": 1, "vote": "defendant"},
+			map[string]any{"juror_id": "J1", "round": 2, "vote": "plaintiff"},
+		},
+		"jury_verdict": map[string]any{"verdict_for": "plaintiff", "required_votes": 1, "votes_for_verdict": 1, "damages": 0},
+	}
+	rendered := renderJurorRounds(caseObj)
+	for _, want := range []string{
+		"Final status",
+		"| J2 | timed_out | n/a | n/a | defendant |",
+		"Configured minimum concurrence: 2.",
+		"Recorded verdict concurrence: 1, required: 1.",
+	} {
+		if !strings.Contains(rendered, want) {
+			t.Errorf("missing %q in %s", want, rendered)
+		}
+	}
+	if strings.Contains(strings.Split(rendered, "### Round 2")[1], "| J2 |") {
+		t.Fatal("juror without a round-two vote appeared in that round")
 	}
 }
 

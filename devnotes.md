@@ -56,6 +56,26 @@ The restarted case later replaced J8 after an empty model response during voir d
 
 The launcher now reads the turn and request specification from that one response.  A test that returns an active juror first and a waiting state on a subsequent request reproduced the failure.  It now passes with one request.  A missing specification in the active snapshot still returns an error.  The failed run and its accepted actions remain in its original output directory.
 
+## Completed Zelenskyy ADC and report review
+
+The third substantive run, `case-57ebb03fff3533f36c714f97b03156ce/run-8d796d8eb479051937f4f70b099fd231`, reached `judgment_entered` with resolution `demonstrated`.  It ran from 14:33:37 to 15:44:01 UTC on September 22, 2026.  Both Astra/xhigh lawyers used fresh Codex subscription sessions and native search.  The input document manifest contains zero documents.  Both lawyers retrieved and inspected the same June 25 photograph, submitted technical reports, and litigated discovery admissions.  Neither submitted the image as a separate trial exhibit.  The judgment rests on the trial record, including the binding pretrial findings and admissions.
+
+Nine jurors were sworn.  Round one split six to three for the plaintiff, and round two split eight to one.  In round three, J2, J4, and J8 ended their agent turns without submitting the required vote.  J2 announced that it would wait, J4 asked for a voting instruction, and J8 stated a plaintiff vote in prose.  ADC applied its existing failure rule and derived a unanimous six-vote plaintiff verdict from the remaining jurors, with zero damages.  All earlier votes remain in the native record.  The Lean certificate replay passed all 188 transitions with final-state hash `b2cd2dff11fe0b3088511fd6fb8efdac2d3b69fdb3c02d7961a5542c9f8adec0`.
+
+The core completed with exit code zero and wrote its Astra/high digest.  The unified launcher reported `procedure_run` because both lawyers exited after the Role API closed but before digest generation finished.  Their status checks received connection-refused errors.  The launcher now checks the atomically written terminal `state.json` when the API connection is refused.  Its core output directory must be empty at startup, so that state belongs to the current invocation.  Missing, malformed, or nonterminal state continues to return an error.  A closed-server test reproduced the defect and passed after the correction.  The original common result retains its shutdown error.
+
+Report review found that round tables excluded earlier votes from jurors whose final status was `timed_out`, and that summaries called the original configured minimum the required vote count even after failures changed the verdict threshold.  Reports now retain every recorded round vote, label juror status as final status, distinguish configured concurrence, and show the recorded verdict's concurrence and requirement.  A focused test reproduced both display errors before the correction.  Reviewed digest and transcript files were generated beside the run directory, preserving the original reports.  The reviewed digest used the production report generator with `gpt-6-astra` and `high` reasoning.
+
+The case directory contains a certificate-verification result, hashes of the original terminal artifacts, reviewed reports, and a case-record index with 303 docket entries and 926 artifacts.  Both retained lawyer sessions are available.  All failed runs remain under the configured output root.  The repository preservation review also survives under `out/repository-preservation-review`, including the original case diff, remote commits and file list, resolved diff, and follow-up Git-object comparison.
+
+Report, ADC CLI, ADC launcher, unified-runner, and `adc-run` tests passed, as did vet for the changed code packages.  No participant containers remained after case completion.  The live reviewed-report test and harness remain under `/tmp/adj-adc-closeout-ohra1z0p`.
+
+- [x] Run the clean case through judgment and digest generation.
+- [x] Verify the replay certificate and retain the complete record.
+- [x] Correct the completed-case lawyer status check.
+- [x] Preserve failed jurors' earlier votes in the reports.
+- [x] Generate reviewed reports without replacing the originals.
+
 ## Pi authentication test diagnosis
 
 At `36316f3`, ADC and ARB contained the same invalid negative fixture in `TestValidateLawyerProfileAuthentication`: `LawyerProfile{Runner: LawyerPi}` had no model, but the assertion expected an `explicit API-key` error.  Provider resolution rejected the missing model before credential validation.  The expected authentication rule also conflicted with the [participant profile documentation](adjudication-cli.md#participant-profiles): Pi supports OpenAI subscription credentials, and an omitted authentication mode selects subscription authentication.

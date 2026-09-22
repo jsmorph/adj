@@ -782,6 +782,39 @@ func TestHandleLawyerExitUsesADCStatus(t *testing.T) {
 	}
 }
 
+func TestHandleLawyerExitAfterCaseAPICloses(t *testing.T) {
+	server := httptest.NewServer(http.NotFoundHandler())
+	server.Close()
+	for _, test := range []struct {
+		name    string
+		state   string
+		wantErr bool
+	}{
+		{name: "judgment", state: `{"case":{"status":"judgment_entered"}}`},
+		{name: "closed", state: `{"case":{"status":"closed"}}`},
+		{name: "unfinished", state: `{"case":{"status":"trial"}}`, wantErr: true},
+		{name: "missing", wantErr: true},
+		{name: "malformed", state: `{`, wantErr: true},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			dir := t.TempDir()
+			if test.state != "" {
+				if err := os.WriteFile(filepath.Join(dir, "state.json"), []byte(test.state), 0o600); err != nil {
+					t.Fatal(err)
+				}
+			}
+			state := &runState{opts: Options{CaseID: "case-1", CoreOutputDir: dir}, caseBase: server.URL}
+			err := state.handleLawyerExit(context.Background(), "plaintiff", "codex-plaintiff")
+			if (err != nil) != test.wantErr {
+				t.Fatalf("exit error = %v, want error %t", err, test.wantErr)
+			}
+			if test.wantErr && !isConnectionRefused(err) {
+				t.Fatalf("lost connection error: %v", err)
+			}
+		})
+	}
+}
+
 func TestActiveJurorOpportunityUsesOneSnapshot(t *testing.T) {
 	for _, includeSpec := range []bool{true, false} {
 		t.Run(fmt.Sprintf("request_spec_%t", includeSpec), func(t *testing.T) {

@@ -1857,6 +1857,21 @@ func (s *runState) lawyerStatus(ctx context.Context, roleID string) (status lawy
 
 func (s *runState) handleLawyerExit(ctx context.Context, roleID, name string) error {
 	status, err := s.lawyerStatus(ctx, roleID)
+	if isConnectionRefused(err) {
+		raw, stateErr := os.ReadFile(filepath.Join(s.opts.CoreOutputDir, "state.json"))
+		if stateErr == nil {
+			var finalState struct {
+				Case map[string]any `json:"case"`
+			}
+			stateErr = json.Unmarshal(raw, &finalState)
+			if stateErr == nil && lawyerExitAllowed(lawyerStatusResponse{CaseStatus: finalState.Case}) {
+				return nil
+			}
+		}
+		if stateErr != nil {
+			err = errors.Join(err, fmt.Errorf("read terminal case state: %w", stateErr))
+		}
+	}
 	if err != nil {
 		return fmt.Errorf("check lawyer status after %s exit: %w", name, err)
 	}
