@@ -44,6 +44,12 @@ A second live test exercised ADC's process supervisor and cleanup after a Pi-ima
 
 The new test checks successful and failed process exits with an absent ID file.  The existing ownership test still rejects an active client with no recorded container ID.  The live Podman test failed before the change and passed after it.  The active case continues with its original process image, so its eventual adjudication result and cleanup result require separate inspection.
 
+### Pi whitespace normalization
+
+The restarted case accepted 13 completed questionnaires after replacing J10 and J11.  J10's provider emitted an assistant message containing only two newline characters beside a tool call.  Pi drops whitespace-only text when it reconstructs Chat Completions messages, so the gateway's comparison rejected the next request.  The gateway now omits whitespace-only assistant text from the Pi response and expected history.  The provider conversation retains its original output.  Adding this response to the existing two-request server test reproduced the failure before the correction.
+
+J11 received malformed provider tool arguments, which the gateway rejected when Pi attempted another request.  ADC recorded both candidate replacements through its existing failed-juror procedure.  J14 and J15 completed their questionnaires before connection-reset errors appeared on their subsequent model calls during shutdown.
+
 ## Pi authentication test diagnosis
 
 At `36316f3`, ADC and ARB contained the same invalid negative fixture in `TestValidateLawyerProfileAuthentication`: `LawyerProfile{Runner: LawyerPi}` had no model, but the assertion expected an `explicit API-key` error.  Provider resolution rejected the missing model before credential validation.  The expected authentication rule also conflicted with the [participant profile documentation](adjudication-cli.md#participant-profiles): Pi supports OpenAI subscription credentials, and an omitted authentication mode selects subscription authentication.

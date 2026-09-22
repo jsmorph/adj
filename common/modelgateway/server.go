@@ -325,6 +325,9 @@ func (s *Server) executeChat(ctx context.Context, binding *chatBinding, chat cha
 	if requestErr != nil {
 		return modelapi.Response{}, requestErr
 	}
+	if strings.TrimSpace(response.Text) == "" {
+		response.Text = ""
+	}
 	binding.inputItems = input
 	binding.previousResponseID = response.ResponseID
 	binding.expectedMessages = append(append([]map[string]any(nil), chat.Messages...), chatAssistantMessage(response))

@@ -44,6 +44,7 @@ func TestChatServerPreservesProviderConversation(t *testing.T) {
 	executor := &fakeExecutor{responses: []modelapi.Response{
 		{
 			ResponseID: "response-1",
+			Text:       "\n\n",
 			ToolCalls: []modelapi.ToolCall{{
 				CallID:       "call-1",
 				Name:         "submit_council_vote",
