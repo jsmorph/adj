@@ -120,6 +120,7 @@ type Options struct {
 	Court                     string
 	Model                     string
 	DigestModel               string
+	DigestReasoningEffort     string
 	NonJurorModel             string
 	PlaintiffModel            string
 	DefendantModel            string
@@ -734,6 +735,7 @@ func corePropositionArgs(opts Options, caseAPIAddr string) []string {
 	args = addCoreString(args, "--judge-model", opts.JudgeModel)
 	args = addCoreString(args, "--clerk-model", opts.ClerkModel)
 	args = addCoreString(args, "--report-model", opts.DigestModel)
+	args = addCoreString(args, "--report-reasoning-effort", opts.DigestReasoningEffort)
 	args = addCoreString(args, "--non-juror-temperature", opts.NonJurorTemperature)
 	args = addCoreString(args, "--trial-mode", opts.TrialMode)
 	if opts.SkipVoirDire {
@@ -761,6 +763,7 @@ func coreComplaintArgs(opts Options, caseAPIAddr string) []string {
 	args = addCoreString(args, "--clerk-model", opts.ClerkModel)
 	args = addCoreString(args, "--planner-model", opts.PlannerModel)
 	args = addCoreString(args, "--report-model", opts.DigestModel)
+	args = addCoreString(args, "--report-reasoning-effort", opts.DigestReasoningEffort)
 	args = addCoreString(args, "--non-juror-temperature", opts.NonJurorTemperature)
 	args = addCoreString(args, "--trial-mode", opts.TrialMode)
 	if opts.SkipVoirDire {
@@ -787,6 +790,7 @@ func coreScenarioArgs(opts Options, caseAPIAddr string) []string {
 	args = appendCoreRoleArgs(args)
 	args = appendCoreCommonArgs(args, opts)
 	args = addCoreString(args, "--report-model", opts.DigestModel)
+	args = addCoreString(args, "--report-reasoning-effort", opts.DigestReasoningEffort)
 	if opts.Offline {
 		args = append(args, "--offline")
 	}
@@ -1056,6 +1060,11 @@ func lawyerWebSearchEnabled(configured *bool) bool {
 }
 
 func validateOptions(opts Options) error {
+	if strings.TrimSpace(opts.DigestReasoningEffort) != "" {
+		if _, err := modelrequest.ParseReasoningEffort(opts.DigestReasoningEffort); err != nil {
+			return fmt.Errorf("report reasoning effort: %w", err)
+		}
+	}
 	participantEnvironment := opts.ParticipantEnvironment
 	hasComplaint := strings.TrimSpace(opts.ComplaintPath) != ""
 	hasProposition := strings.TrimSpace(opts.Proposition) != ""

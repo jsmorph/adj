@@ -142,6 +142,8 @@ func (failedLocalRunWriter) Write([]byte) (int, error) {
 
 func TestCoreCaseArgsUseProcessInterface(t *testing.T) {
 	propositionArgs := coreCaseArgs(Options{
+		DigestModel:             "gpt-6-astra",
+		DigestReasoningEffort:   "high",
 		Proposition:             "The sky is blue.",
 		DocumentsDir:            "/case/documents",
 		EvidenceStandard:        "clear_and_convincing",
@@ -162,6 +164,7 @@ func TestCoreCaseArgsUseProcessInterface(t *testing.T) {
 	joined := strings.Join(propositionArgs, "\x00")
 	for _, want := range []string{
 		"case", "--proposition\x00The sky is blue.", "--documents\x00/case/documents",
+		"--report-model\x00gpt-6-astra", "--report-reasoning-effort\x00high",
 		"--evidence-standard\x00clear_and_convincing", "--out-dir\x00/out/adc-output",
 		"--case-id\x00case-proposition", "--run-id\x00run-proposition",
 		"--caseapi-addr\x00127.0.0.1:9000", "--max-document-files\x0012",

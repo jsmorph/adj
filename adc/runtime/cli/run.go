@@ -15,6 +15,7 @@ import (
 	"github.com/agentcourt/adj/adc/runtime/runner"
 	"github.com/agentcourt/adj/adc/runtime/store"
 	"github.com/agentcourt/adj/common/modelgateway"
+	"github.com/agentcourt/adj/common/modelrequest"
 	"github.com/agentcourt/adj/common/openai"
 )
 
@@ -53,6 +54,7 @@ func RunScenarioCase(ctx context.Context, args []string, stdout io.Writer, stder
 	transcriptPath := fs.String("transcript", "", "Optional transcript markdown output path")
 	digestPath := fs.String("digest", "", "Optional digest/report markdown output path")
 	reportModel := fs.String("report-model", "", "Model for digest generation")
+	reportReasoningEffort := fs.String("report-reasoning-effort", "", "Reasoning effort for digest generation")
 	promptDir := fs.String("prompt-dir", "", "ADC prompt catalog directory")
 	var promptFiles promptFileFlag
 	allowAssertionFailures := fs.Bool("allow-assertion-failures", false, "Return success after recording failed scenario assertions")
@@ -71,6 +73,11 @@ func RunScenarioCase(ctx context.Context, args []string, stdout io.Writer, stder
 	}
 	if strings.TrimSpace(*scenarioPath) == "" {
 		return fmt.Errorf("--scenario is required")
+	}
+	if strings.TrimSpace(*reportReasoningEffort) != "" {
+		if _, err := modelrequest.ParseReasoningEffort(*reportReasoningEffort); err != nil {
+			return fmt.Errorf("--report-reasoning-effort: %w", err)
+		}
 	}
 	resolvedPromptDir, resolvedPromptFiles, err := resolvePromptOptions(*promptDir, promptFiles)
 	if err != nil {
@@ -187,10 +194,11 @@ func RunScenarioCase(ctx context.Context, args []string, stdout io.Writer, stder
 		return err
 	}
 	digestErr := report.WriteDigestWithOptions(strings.TrimSpace(*digestPath), result, report.DigestOptions{
-		Model:       strings.TrimSpace(*reportModel),
-		Client:      client,
-		PromptDir:   resolvedPromptDir,
-		PromptFiles: resolvedPromptFiles,
+		ReasoningEffort: strings.TrimSpace(*reportReasoningEffort),
+		Model:           strings.TrimSpace(*reportModel),
+		Client:          client,
+		PromptDir:       resolvedPromptDir,
+		PromptFiles:     resolvedPromptFiles,
 	})
 	accountingErr := r.RefreshProviderAccounting(&result)
 	if err := errors.Join(digestErr, accountingErr); err != nil {

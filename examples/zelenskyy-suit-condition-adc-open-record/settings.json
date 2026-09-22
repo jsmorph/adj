@@ -1,0 +1,55 @@
+{
+  "schema_version": "adjudicate.settings.v1",
+  "common": {
+    "output_root": "../../out/zelenskyy-suit-condition-adc-open-record",
+    "lawyer_profile": "astra-lawyers",
+    "evidence_standard": "preponderance_of_the_evidence",
+    "council_pool": "../../common/data/personas/pool.jsonl",
+    "council_size": 9,
+    "required_votes": 9,
+    "document_limits": {
+      "count": 100,
+      "per_file_bytes": 1048576,
+      "total_bytes": 8388608
+    },
+    "allow_api_key": true,
+    "provider_credentials": {
+      "openai": {
+        "source": "api_key",
+        "environment_variable": "OPENAI_API_KEY"
+      },
+      "openrouter": {
+        "source": "api_key",
+        "environment_variable": "OPENROUTER_API_KEY"
+      }
+    }
+  },
+  "agent_profiles": {
+    "astra-lawyers": {
+      "runner": "codex",
+      "model": "gpt-6-astra",
+      "reasoning_effort": "xhigh",
+      "authentication": {
+        "source": "subscription",
+        "path": "~/.codex/auth.json"
+      },
+      "resume": false
+    }
+  },
+  "procedures": {
+    "adc": {
+      "core_command": "../../adc/.bin/adc",
+      "core_working_directory": "../..",
+      "mcp_command": "../../adc/.bin/adc-mcp",
+      "mcp_working_directory": "../..",
+      "mcp_listen": "127.0.0.1:0",
+      "auto_lawyers": "both",
+      "trial_mode": "jury",
+      "web_search": true,
+      "report_model": "gpt-6-astra",
+      "report_reasoning_effort": "high",
+      "prompt_dir": "../../prompts/adc",
+      "launcher_prompt_dir": "../../prompts/adc"
+    }
+  }
+}

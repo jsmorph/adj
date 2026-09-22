@@ -257,6 +257,8 @@ The `arbd` adapter writes a `# Question` complaint, passes each staged document 
 
 The `adc` adapter passes the proposition to ADC's Proposition Tribunal, which creates a declaratory claim between `Proponent` and `Opponent`.  It supplies the staged document directory, explicit document limits, common evidence standard, selected lawyer profiles, lawyer search policy, and trial mode.  Jury and automatic modes use the common council pool as ADC's juror pool.  ADC checks an untested pool configuration through the production juror-vote tool before assigning it to an automatically generated candidate and replaces failed configurations.  Bench mode omits juror-pool execution.
 
+The ADC settings `report_model` and `report_reasoning_effort` select the digest model and its reasoning effort.  Omission preserves the launcher's model default and the digest's request defaults.  The effort accepts `none`, `minimal`, `low`, `medium`, `high`, `xhigh`, or `max`, subject to model support, and applies to both the initial summary and any repair request.
+
 ### `simple`
 
 The `simple` runner makes one provider request containing the proposition, decision instructions, and supported imported material.  Its procedure object requires an `openai://MODEL` or `openrouter://MODEL` model reference without a query or fragment.  When search is enabled, the request makes the current Responses `web_search` tool available through the selected endpoint and its existing credential.  The model decides whether to call it.

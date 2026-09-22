@@ -1,5 +1,42 @@
 # Development Notes
 
+## Zelenskyy suit ADC case
+
+The [case configuration](examples/zelenskyy-suit-condition-adc-open-record/README.md) preserves the factual proposition and begins with zero imported evidence files.  Both lawyers use Codex with `gpt-6-astra`, `xhigh` reasoning, native search, fresh sessions, and subscription credentials from `~/.codex/auth.json`.  The proof standard is preponderance of the evidence.  The user selected ADC's existing jury rule after learning that five concurring votes were unsupported.  Nine jurors therefore use default unanimity, with ADC's existing failed-juror handling.
+
+ADC's unified settings now accept `report_model` and `report_reasoning_effort`.  The launcher and core carry the selected effort into the digest's initial and repair requests.  This case selects `gpt-6-astra` with `high` reasoning.  Digest requests omit a fixed temperature, following the [Astra request documentation](https://developers.openai.com/api/docs/guides/latest-model#update-api-and-model-parameters).  The shared client's `OPENAI_TEMPERATURE` environment setting still applies if configured.
+
+- [x] Create the proposition and settings without importing evidence.
+- [x] Preserve ADC's existing jury procedure.
+- [x] Add digest model and reasoning controls through the unified launcher and ADC commands.
+- [x] Test digest initial and repair requests, settings validation, and launcher arguments.
+- [x] Validate the new case settings and document the result.
+
+The digest, unified-settings, launcher-argument, and CLI validation tests passed.  The complete report, unified-runner, and `adc-run` package tests passed.  Go vet passed for the five affected packages, and the `adc`, `adc-run`, and `adjudicate` commands built.  The case settings loaded through the production loader with both lawyers resolving to `/home/somebody/.codex/auth.json`, nine required votes, and an Astra/high digest.  The case directory contains the proposition, settings, and README.
+
+The initial broader ADC launcher suite failed `TestValidateLawyerProfileAuthentication`: its Pi profile omitted a provider-qualified model, so validation returned the model error before the expected authentication error.  The same test failed with the original launcher source and test from `HEAD` supplied through a Go overlay.  The initial sandboxed test run also rejected loopback listeners.  The permitted run outside the sandbox completed the HTTP tests.  Go reported the existing shared `GOPATH`/`GOROOT` warning, and the successful sandboxed build reported a read-only module-stat cache write.
+
+The case commit was rebased onto remote `main` at `1c7f5d6`, incorporating the Pi test corrections, provider-neutral juror execution, and the revised ADC opportunity loop.  Conflict resolution preserved the remote removal of fixed digest temperature and added the configurable reasoning effort.  The report, ADC CLI, unified runner, ADC and ARB launcher, shared agent, shared lawyer, and `adc-run` package tests passed after integration.  Case execution remains pending.
+
+The merge review compared all 1,696 files outside the original 18-file change against remote Git objects, including executable modes.  All matched.  The three new case files matched the original commit byte for byte.  The two digest calls were the only remotely added lines replaced during integration.  Their replacements preserve the remote request defaults while carrying the selected reasoning effort.  The original commit remains at `backup/zelenskyy-adc-9d4ef76`.  Review diffs and the complete remote file list are under `/tmp/adj-merge-review-9bomx5cx`.  Tests passed across the ADC runtime, shared provider executor, council selector, Pi model adapter, all runtime packages, and all command packages.  Local Lean runner builds of `adcengine` and `Proofs` passed with 4 GiB memory high, 6 GiB memory maximum, 1 GiB swap, 100% CPU, and a 900-second timeout per build.
+
+## Pi authentication test diagnosis
+
+At `36316f3`, ADC and ARB contained the same invalid negative fixture in `TestValidateLawyerProfileAuthentication`: `LawyerProfile{Runner: LawyerPi}` had no model, but the assertion expected an `explicit API-key` error.  Provider resolution rejected the missing model before credential validation.  The expected authentication rule also conflicted with the [participant profile documentation](adjudication-cli.md#participant-profiles): Pi supports OpenAI subscription credentials, and an omitted authentication mode selects subscription authentication.
+
+Both failures reproduce against the committed implementation.  The shared agent-runtime suite passes, including Pi API-key isolation and Codex subscription credential conversion.  A temporary Go overlay replaces each invalid assertion with checks that a valid OpenRouter model in API-key mode requires a named key source and that a valid OpenAI model with default authentication requires subscription credentials despite an ambient key.  Both complete launcher suites pass with that overlay.  Repository tests and runtime code remain unchanged by this diagnosis.
+
+### Live Pi inference
+
+Live tests used Pi 0.84.3 from the installed `agentcourt-pi-sandbox` image through the shared lawyer supervisor, agent preparation, container launch, response verification, usage parsing, and cleanup.  A temporary Go overlay supplied the test without changing repository test or runtime files.  The prompt requested the product of 19 and 23 with the prefix `PI_INFERENCE_OK`.  Both completed tests returned `PI_INFERENCE_OK 437`.
+
+| Authentication | Model | Elapsed | Total tokens |
+| --- | --- | --- | --- |
+| Codex subscription from `~/.codex/auth.json` | `openai/gpt-6-astra`, `xhigh` requested | 8.592 seconds | 2,481 |
+| OpenRouter API key from `~/keys.txt` | `openrouter/anthropic/claude-sonnet-4` | 5.024 seconds | 3,867 |
+
+The first subscription request completed inference, but the temporary MCP fixture marked Pi's optional `server/discover` request as a test error.  The fixture now returns JSON-RPC method-not-found for unsupported methods, matching the repository MCP bridge.  The repeated subscription test and the API-key test passed.  Both test containers exited, and the launcher removed staged authentication and MCP credential files.  The records and temporary harness are under `/tmp/adj-pi-live-14r2foas`, with passing results under `verified/`.
+
 ## Repository Scope
 
 This repository owns complete one-case execution for ADC, ARB, AARD, simple, and quick.  It contains the unified `adjudicate` command, the formal `adc-run`, `aar-run`, and `aard-run` commands, local participant launchers, MCP adapters, prompt catalogs, retained participant state, and native case records.  ADC, ARB, and AARD also include their Lean engines and proofs.

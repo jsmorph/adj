@@ -19,6 +19,7 @@ import (
 	"github.com/agentcourt/adj/adc/runtime/store"
 	"github.com/agentcourt/adj/common/documents"
 	"github.com/agentcourt/adj/common/modelgateway"
+	"github.com/agentcourt/adj/common/modelrequest"
 	"github.com/agentcourt/adj/common/openai"
 )
 
@@ -45,6 +46,7 @@ func RunCase(ctx context.Context, args []string, stdout io.Writer, stderr io.Wri
 	clerkModel := fs.String("clerk-model", "", "Runtime model for the clerk. Default: --non-juror-model")
 	plannerModel := fs.String("planner-model", casegen.DefaultPlannerModel(), "Model for neutral intake and strategy planning")
 	reportModel := fs.String("report-model", casegen.DefaultRuntimeModel(), "Model for digest generation")
+	reportReasoningEffort := fs.String("report-reasoning-effort", "", "Reasoning effort for digest generation")
 	promptDir := fs.String("prompt-dir", "", "ADC prompt catalog directory")
 	var promptFiles promptFileFlag
 	temperature := fs.String("temperature", "", "Override runtime temperature")
@@ -101,6 +103,11 @@ func RunCase(ctx context.Context, args []string, stdout io.Writer, stderr io.Wri
 	}
 	if strings.TrimSpace(*outDir) == "" {
 		return fmt.Errorf("--out-dir is required")
+	}
+	if strings.TrimSpace(*reportReasoningEffort) != "" {
+		if _, err := modelrequest.ParseReasoningEffort(*reportReasoningEffort); err != nil {
+			return fmt.Errorf("--report-reasoning-effort: %w", err)
+		}
 	}
 	resolvedPromptDir, resolvedPromptFiles, err := resolvePromptOptions(*promptDir, promptFiles)
 	if err != nil {
@@ -267,10 +274,11 @@ func RunCase(ctx context.Context, args []string, stdout io.Writer, stderr io.Wri
 		return err
 	}
 	digestErr := report.WriteDigestWithOptions(digestPath, result, report.DigestOptions{
-		Model:       resolvedReportModel,
-		Client:      client,
-		PromptDir:   resolvedPromptDir,
-		PromptFiles: resolvedPromptFiles,
+		ReasoningEffort: strings.TrimSpace(*reportReasoningEffort),
+		Model:           resolvedReportModel,
+		Client:          client,
+		PromptDir:       resolvedPromptDir,
+		PromptFiles:     resolvedPromptFiles,
 	})
 	accountingErr := r.RefreshProviderAccounting(&result)
 	if err := errors.Join(digestErr, accountingErr); err != nil {

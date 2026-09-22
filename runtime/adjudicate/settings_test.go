@@ -503,6 +503,37 @@ func TestFormalWebSearchExplicitFalse(t *testing.T) {
 	}
 }
 
+func TestADCReportSettings(t *testing.T) {
+	for _, effort := range []string{"", "high", "invalid"} {
+		t.Run("effort="+effort, func(t *testing.T) {
+			path := writeTestFile(t, "settings.json", `{
+			  "schema_version":"adjudicate.settings.v1",
+			  "common":{
+			    "evidence_standard":"preponderance_of_the_evidence",
+			    "allow_api_key":true,
+			    "provider_credentials":{"openai":{"source":"api_key","environment_variable":"OPENAI_API_KEY"}},
+			    "document_limits":{"count":1,"per_file_bytes":1,"total_bytes":1}
+			  },
+			  "procedures":{"adc":{"trial_mode":"bench","auto_lawyers":"none",
+			    "report_model":"gpt-6-astra","report_reasoning_effort":`+strconv.Quote(effort)+`}}
+			}`)
+			settings, err := LoadSettings(path, ProcedureADC)
+			if effort == "invalid" {
+				if err == nil || !strings.Contains(err.Error(), "report_reasoning_effort") {
+					t.Fatalf("LoadSettings() error = %v", err)
+				}
+				return
+			}
+			if err != nil {
+				t.Fatal(err)
+			}
+			if settings.Procedure.ADC.ReportModel != "gpt-6-astra" || settings.Procedure.ADC.ReportReasoningEffort != effort {
+				t.Fatalf("report settings = %#v", settings.Procedure.ADC)
+			}
+		})
+	}
+}
+
 func TestResolveCommonAdjudicationSettings(t *testing.T) {
 	tests := []struct {
 		name       string

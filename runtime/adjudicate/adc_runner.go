@@ -86,6 +86,8 @@ func (r ADCRunner) Run(ctx context.Context, request ProcedureRequest) (Procedure
 		CoreOutputDir:           request.CoreDir,
 		LogsDir:                 request.LogsDir,
 		TrialMode:               settings.TrialMode,
+		DigestModel:             settings.ReportModel,
+		DigestReasoningEffort:   settings.ReportReasoningEffort,
 		JurorTimeoutSeconds:     timeoutSeconds,
 		CouncilAllowedEndpoints: append([]string(nil), request.Settings.Common.CouncilAllowedEndpoints...),
 		CouncilMinEndpoints:     request.Settings.Common.CouncilMinEndpoints,

@@ -13,6 +13,7 @@ import (
 	"time"
 
 	"github.com/agentcourt/adj/common/modelgateway"
+	"github.com/agentcourt/adj/common/modelrequest"
 )
 
 type SettingsFile struct {
@@ -89,22 +90,24 @@ type ARBSettings struct {
 }
 
 type ADCSettings struct {
-	CoreCommand         string          `json:"core_command,omitempty"`
-	CoreWorkingDir      string          `json:"core_working_directory,omitempty"`
-	MCPCommand          string          `json:"mcp_command,omitempty"`
-	MCPWorkingDir       string          `json:"mcp_working_directory,omitempty"`
-	MCPListenAddr       string          `json:"mcp_listen,omitempty"`
-	MCPPublicBaseURL    string          `json:"mcp_public_base_url,omitempty"`
-	AutoLawyers         string          `json:"auto_lawyers,omitempty"`
-	PlaintiffProfile    string          `json:"plaintiff_profile"`
-	DefendantProfile    string          `json:"defendant_profile"`
-	TrialMode           string          `json:"trial_mode,omitempty"`
-	WebSearch           *bool           `json:"web_search,omitempty"`
-	PromptDir           string          `json:"prompt_dir,omitempty"`
-	PromptFiles         PromptFilePaths `json:"prompt_files,omitempty"`
-	LauncherPromptDir   string          `json:"launcher_prompt_dir,omitempty"`
-	LauncherPromptFiles PromptFilePaths `json:"launcher_prompt_files,omitempty"`
-	Timeout             Duration        `json:"timeout,omitempty"`
+	CoreCommand           string          `json:"core_command,omitempty"`
+	CoreWorkingDir        string          `json:"core_working_directory,omitempty"`
+	MCPCommand            string          `json:"mcp_command,omitempty"`
+	MCPWorkingDir         string          `json:"mcp_working_directory,omitempty"`
+	MCPListenAddr         string          `json:"mcp_listen,omitempty"`
+	MCPPublicBaseURL      string          `json:"mcp_public_base_url,omitempty"`
+	AutoLawyers           string          `json:"auto_lawyers,omitempty"`
+	PlaintiffProfile      string          `json:"plaintiff_profile"`
+	DefendantProfile      string          `json:"defendant_profile"`
+	TrialMode             string          `json:"trial_mode,omitempty"`
+	ReportModel           string          `json:"report_model,omitempty"`
+	ReportReasoningEffort string          `json:"report_reasoning_effort,omitempty"`
+	WebSearch             *bool           `json:"web_search,omitempty"`
+	PromptDir             string          `json:"prompt_dir,omitempty"`
+	PromptFiles           PromptFilePaths `json:"prompt_files,omitempty"`
+	LauncherPromptDir     string          `json:"launcher_prompt_dir,omitempty"`
+	LauncherPromptFiles   PromptFilePaths `json:"launcher_prompt_files,omitempty"`
+	Timeout               Duration        `json:"timeout,omitempty"`
 }
 
 type SimpleSettings struct {
@@ -949,6 +952,13 @@ func resolveARBD(s *ARBDSettings, profiles map[string]ResolvedAgentProfile, base
 }
 
 func resolveADC(s *ADCSettings, profiles map[string]ResolvedAgentProfile, baseDir, homeDir string) error {
+	s.ReportModel = strings.TrimSpace(s.ReportModel)
+	s.ReportReasoningEffort = strings.TrimSpace(s.ReportReasoningEffort)
+	if s.ReportReasoningEffort != "" {
+		if _, err := modelrequest.ParseReasoningEffort(s.ReportReasoningEffort); err != nil {
+			return fmt.Errorf("report_reasoning_effort: %w", err)
+		}
+	}
 	s.WebSearch = defaultEnabled(s.WebSearch)
 	s.CoreCommand = resolveCommand(baseDir, homeDir, s.CoreCommand, "adc")
 	s.CoreWorkingDir = resolveOptionalPath(baseDir, homeDir, s.CoreWorkingDir)

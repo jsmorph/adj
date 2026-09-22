@@ -56,6 +56,7 @@ func runLocal(ctx context.Context, args []string, stdout io.Writer, stderr io.Wr
 	clerkModel := fs.String("clerk-model", "", "Runtime model for the clerk during complaint preparation")
 	plannerModel := fs.String("planner-model", localrun.DefaultPlannerModel, "Model for neutral intake and strategy planning")
 	reportModel := fs.String("report-model", localrun.DefaultReportModel, "Model for digest generation")
+	reportReasoningEffort := fs.String("report-reasoning-effort", "", "Reasoning effort for digest generation")
 	temperature := fs.String("temperature", "", "Override runtime temperature")
 	nonJurorTemperature := fs.String("non-juror-temperature", "", "Override non-juror complaint-preparation temperature")
 	jurorTemperature := fs.String("juror-temperature", "", "Override runtime temperature for direct jurors")
@@ -147,6 +148,7 @@ func runLocal(ctx context.Context, args []string, stdout io.Writer, stderr io.Wr
 		LauncherPromptDir:         strings.TrimSpace(*launcherPromptDir),
 		LauncherPromptFiles:       launcherPromptFiles.Map(),
 		DigestModel:               strings.TrimSpace(*reportModel),
+		DigestReasoningEffort:     strings.TrimSpace(*reportReasoningEffort),
 		NonJurorModel:             strings.TrimSpace(*nonJurorModel),
 		PlaintiffModel:            strings.TrimSpace(*plaintiffModel),
 		DefendantModel:            strings.TrimSpace(*defendantModel),

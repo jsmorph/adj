@@ -165,6 +165,7 @@ Juror request specifications come from the JSONL file named by `--juror-personas
 | `--judge-model`, `--clerk-model` | Court-role model overrides. |
 | `--planner-model` | Model for complaint intake and strategy preparation.  Proposition mode rejects this flag. |
 | `--report-model` | Model for digest generation. |
+| `--report-reasoning-effort` | Optional reasoning effort for digest generation, including any repair request. |
 | `--prompt-dir` | Complete ADC prompt catalog directory. |
 | `--prompt-file` | One prompt override as `ID=PATH`.  Repeat as needed. |
 | `--temperature` | Default runtime temperature override. |
@@ -186,6 +187,8 @@ Juror request specifications come from the JSONL file named by `--juror-personas
 | `--roleapi-timeout-seconds` | Deadline for each external opportunity. |
 | `--case-id`, `--run-id` | API and record identifiers. |
 | `--engine` | Lean engine command. |
+
+`adc case`, `adc scenario`, and `adc-run` accept `--report-reasoning-effort` with `none`, `minimal`, `low`, `medium`, `high`, `xhigh`, or `max`, subject to model support.  Omission preserves the digest's request defaults.
 
 This example uses direct model calls for every procedural role.  It requests a jury trial and writes the complete case under `out/ex1`.  The generated run identifier also becomes the case identifier unless `--case-id` changes it.
 

@@ -13,14 +13,16 @@ import (
 
 	adcprompts "github.com/agentcourt/adj/adc/runtime/prompts"
 	"github.com/agentcourt/adj/adc/runtime/runner"
+	"github.com/agentcourt/adj/common/modelrequest"
 	"github.com/agentcourt/adj/common/openai"
 )
 
 type DigestOptions struct {
-	Model       string
-	Client      *openai.Client
-	PromptDir   string
-	PromptFiles map[string]string
+	Model           string
+	ReasoningEffort string
+	Client          *openai.Client
+	PromptDir       string
+	PromptFiles     map[string]string
 }
 
 func WriteTranscript(path string, result runner.Result) error {
@@ -84,6 +86,11 @@ func WriteDigestWithClient(path string, result runner.Result, model string, clie
 func WriteDigestWithOptions(path string, result runner.Result, opts DigestOptions) error {
 	if strings.TrimSpace(path) == "" {
 		return nil
+	}
+	if strings.TrimSpace(opts.ReasoningEffort) != "" {
+		if _, err := modelrequest.ParseReasoningEffort(opts.ReasoningEffort); err != nil {
+			return fmt.Errorf("digest reasoning effort: %w", err)
+		}
 	}
 	promptCatalog, err := adcprompts.Load(adcprompts.Options{PromptDir: opts.PromptDir, PromptFiles: opts.PromptFiles})
 	if err != nil {
@@ -176,7 +183,7 @@ func WriteDigestWithOptions(path string, result runner.Result, opts DigestOption
 	}
 
 	b.WriteString("\n## Side Argument Summaries\n\n")
-	summary, err := summarizeArgumentsBySide(caseObj, docket, opts.Model, opts.Client, promptCatalog)
+	summary, err := summarizeArgumentsBySide(caseObj, docket, opts, promptCatalog)
 	if err != nil {
 		return fmt.Errorf("generate side argument summaries: %w", err)
 	}
@@ -253,7 +260,7 @@ type sideSummaryResult struct {
 	Source    string
 }
 
-func summarizeArgumentsBySide(caseObj map[string]any, docket []any, model string, client *openai.Client, promptCatalog *adcprompts.Catalog) (sideSummaryResult, error) {
+func summarizeArgumentsBySide(caseObj map[string]any, docket []any, opts DigestOptions, promptCatalog *adcprompts.Catalog) (sideSummaryResult, error) {
 	plaintiffText, defendantText := collectSideArguments(docket)
 	courtroomContext := collectCourtroomContext(docket)
 	evidenceContext := collectEvidenceContext(caseObj, docket)
@@ -266,7 +273,7 @@ func summarizeArgumentsBySide(caseObj map[string]any, docket []any, model string
 		}, nil
 	}
 
-	plaintiffLLM, defendantLLM, err := summarizeArgumentsBySideLLM(plaintiffText, defendantText, courtroomContext, evidenceContext, model, client, promptCatalog)
+	plaintiffLLM, defendantLLM, err := summarizeArgumentsBySideLLM(plaintiffText, defendantText, courtroomContext, evidenceContext, opts, promptCatalog)
 	if err == nil {
 		return sideSummaryResult{
 			Plaintiff: plaintiffLLM,
@@ -353,8 +360,9 @@ func collectEvidenceContext(caseObj map[string]any, docket []any) string {
 	return strings.Join(lines, "\n")
 }
 
-func summarizeArgumentsBySideLLM(plaintiffText, defendantText, courtroomContext, evidenceContext, model string, client *openai.Client, promptCatalog *adcprompts.Catalog) (string, string, error) {
+func summarizeArgumentsBySideLLM(plaintiffText, defendantText, courtroomContext, evidenceContext string, opts DigestOptions, promptCatalog *adcprompts.Catalog) (string, string, error) {
 	var err error
+	client := opts.Client
 	if client == nil {
 		client, err = openai.NewFromEnv(false, 90*time.Second)
 		if err != nil {
@@ -364,7 +372,14 @@ func summarizeArgumentsBySideLLM(plaintiffText, defendantText, courtroomContext,
 	ctx, cancel := context.WithTimeout(context.Background(), 90*time.Second)
 	defer cancel()
 
-	model = resolveSummaryModel(model)
+	request := modelrequest.Spec{Model: resolveSummaryModel(opts.Model)}
+	if strings.TrimSpace(opts.ReasoningEffort) != "" {
+		effort, err := modelrequest.ParseReasoningEffort(opts.ReasoningEffort)
+		if err != nil {
+			return "", "", err
+		}
+		request = request.WithReasoningEffort(effort)
+	}
 	systemPrompt, err := promptCatalog.Text(adcprompts.ReportSummarySystemID)
 	if err != nil {
 		return "", "", err
@@ -388,7 +403,7 @@ func summarizeArgumentsBySideLLM(plaintiffText, defendantText, courtroomContext,
 			"content": userPrompt,
 		},
 	}
-	resp, err := client.CreateResponse(ctx, model, input, nil, "", nil)
+	resp, err := client.CreateResponseWithRequestSpec(ctx, request, input, nil, "")
 	if err != nil {
 		return "", "", fmt.Errorf("request summary: %w", err)
 	}
@@ -412,7 +427,7 @@ func summarizeArgumentsBySideLLM(plaintiffText, defendantText, courtroomContext,
 				"content": repairUser,
 			},
 		}
-		fixResp, fixErr := client.CreateResponse(ctx, model, fixPrompt, nil, "", nil)
+		fixResp, fixErr := client.CreateResponseWithRequestSpec(ctx, request, fixPrompt, nil, "")
 		if fixErr != nil {
 			return "", "", fmt.Errorf("summary parse failed (%v) and repair failed: %w", err, fixErr)
 		}

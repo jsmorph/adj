@@ -1,14 +1,95 @@
 package report
 
 import (
+	"encoding/json"
+	"fmt"
+	"net/http"
+	"net/http/httptest"
 	"os"
 	"path/filepath"
 	"strings"
 	"testing"
+	"time"
 	"unicode/utf8"
 
 	"github.com/agentcourt/adj/adc/runtime/runner"
+	"github.com/agentcourt/adj/common/openai"
 )
+
+func TestDigestReasoningReachesInitialAndRepairRequests(t *testing.T) {
+	t.Setenv("OPENAI_TEMPERATURE", "")
+	for _, effort := range []string{"", "high"} {
+		t.Run("effort="+effort, func(t *testing.T) {
+			model := "gpt-4.1-mini"
+			if effort != "" {
+				model = "gpt-6-astra"
+			}
+			var requests []map[string]any
+			server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				var request map[string]any
+				if err := json.NewDecoder(r.Body).Decode(&request); err != nil {
+					t.Error(err)
+					http.Error(w, err.Error(), http.StatusBadRequest)
+					return
+				}
+				requests = append(requests, request)
+				content := "invalid summary"
+				if len(requests) == 2 {
+					content = `{"plaintiff_summary":"Proponent cites [P-1].","defendant_summary":"Opponent cites [D-1]."}`
+				}
+				w.Header().Set("Content-Type", "application/json")
+				if err := json.NewEncoder(w).Encode(map[string]any{
+					"id": fmt.Sprintf("resp_%d", len(requests)), "object": "response", "status": "completed",
+					"output": []any{map[string]any{"type": "message", "role": "assistant", "status": "completed",
+						"content": []any{map[string]any{"type": "output_text", "text": content}}}},
+				}); err != nil {
+					t.Error(err)
+				}
+			}))
+			defer server.Close()
+			client, err := openai.New("test-key", server.URL, false, time.Second)
+			if err != nil {
+				t.Fatal(err)
+			}
+			result := runner.Result{FinalState: map[string]any{"case": map[string]any{
+				"docket": []any{map[string]any{"title": "Closing argument - plaintiff", "description": "The image supports the proposition [P-1]."}},
+			}}}
+			path := filepath.Join(t.TempDir(), "digest.md")
+			if err := WriteDigestWithOptions(path, result, DigestOptions{Model: model, ReasoningEffort: effort, Client: client}); err != nil {
+				t.Fatal(err)
+			}
+			if len(requests) != 2 {
+				t.Fatalf("requests = %d, want initial and repair", len(requests))
+			}
+			for _, request := range requests {
+				if request["model"] != model {
+					t.Fatalf("model = %v", request["model"])
+				}
+				if effort == "" {
+					if request["reasoning"] != nil || request["temperature"] != nil {
+						t.Fatalf("default digest parameters = %#v", request)
+					}
+				} else {
+					reasoning, _ := request["reasoning"].(map[string]any)
+					if reasoning["effort"] != effort || request["temperature"] != nil {
+						t.Fatalf("reasoning digest parameters = %#v", request)
+					}
+				}
+			}
+		})
+	}
+}
+
+func TestDigestRejectsInvalidReasoningBeforeWriting(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "digest.md")
+	err := WriteDigestWithOptions(path, runner.Result{}, DigestOptions{ReasoningEffort: "invalid"})
+	if err == nil || !strings.Contains(err.Error(), "reasoning effort") {
+		t.Fatalf("error = %v", err)
+	}
+	if _, err := os.Stat(path); !os.IsNotExist(err) {
+		t.Fatalf("digest file stat = %v", err)
+	}
+}
 
 func TestRenderJurorRoundsIncludesRoundSummaries(t *testing.T) {
 	t.Parallel()

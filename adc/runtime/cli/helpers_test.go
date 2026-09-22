@@ -1,10 +1,32 @@
 package cli
 
 import (
+	"context"
+	"io"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 )
+
+func TestReportReasoningFlagRejectsInvalidEffort(t *testing.T) {
+	for _, command := range []struct {
+		name string
+		run  func(context.Context, []string, io.Writer, io.Writer) error
+		args []string
+	}{
+		{"case", RunCase, []string{"--proposition", "A proposition.", "--evidence-standard", "preponderance_of_the_evidence", "--max-document-files", "1", "--max-document-file-bytes", "1", "--max-documents-total-bytes", "1"}},
+		{"scenario", RunScenarioCase, []string{"--scenario", "unused.json"}},
+	} {
+		t.Run(command.name, func(t *testing.T) {
+			args := append(command.args, "--report-reasoning-effort", "invalid")
+			err := command.run(context.Background(), args, io.Discard, io.Discard)
+			if err == nil || !strings.Contains(err.Error(), "--report-reasoning-effort") {
+				t.Fatalf("error = %v", err)
+			}
+		})
+	}
+}
 
 func TestDefaultEngineCommandPrefersExecutableSibling(t *testing.T) {
 	t.Parallel()
